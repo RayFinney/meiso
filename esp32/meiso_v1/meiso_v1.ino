@@ -19,8 +19,9 @@ bool migrateMode = false;
 const char* statAddress = "http://ubuntu:8080/stats";
 const char* startupAddress = "http://ubuntu:8080/startup";
 
-BH1750 lightMeter;
 int sensorDelay = 10000;
+
+BH1750 lightMeter;
 
 int dataPin = 2; // PIN D4 = GPIO 2
 DHT dht(dataPin, sensor);
@@ -134,6 +135,13 @@ void connectWifi() {
 
   //check wi-fi is connected to wi-fi network
   while (WiFi.status() != WL_CONNECTED) {
+    resetButtonState = digitalRead(resetButtonPin);
+    if (resetButtonState == HIGH) {
+      Serial.println("reset");
+      clearEEPROM();
+      delay(1000);
+      ESP.restart();
+    }
     delay(1000);
     Serial.print(".");
   }
@@ -176,6 +184,7 @@ void sendData (float lux, float temp, float fTemp, float humidity) {
   if (!client.connect(host, httpPort))
   {
     Serial.println("connection failed");
+    return;
   }
   String postData = "{\"temp\": "+String(temp)+",\"fTemp\": "+String(fTemp)+",\"humidity\": "+String(humidity)+",\"lux\": "+String(lux)+"}";
   HTTPClient http;
@@ -218,6 +227,11 @@ void handleWifi() {
   String pw = split(server.arg("plain"), '\n', 1);
   ssid.toCharArray(wifi_ssid_private, 32);
   pw.toCharArray(wifi_password_private, 32);
+
+  Serial.println(ssid);
+  Serial.println(pw);
+  Serial.println(wifi_ssid_private);
+  Serial.println(wifi_password_private);
   
   writeEEPROM(0,wifi_ssid_private);//32 byte max length
   writeEEPROM(32,wifi_password_private);//32 byte max length
