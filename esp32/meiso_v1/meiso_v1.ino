@@ -1,6 +1,10 @@
-#include <ESP8266WiFi.h>
-#include <ESP8266HTTPClient.h>
-#include <ESP8266WebServer.h>
+// WEMOS D1 mini & R2 NICHT LITE ODER PRO
+
+#include <WiFi.h>
+#include <WiFiAP.h>
+#include <WiFiClient.h>
+#include <WebServer.h>
+#include <HTTPClient.h>
 #include <BH1750.h>
 #include <Wire.h>
 #include "DHT.h"
@@ -12,8 +16,10 @@ const char* device_uuid = "15518caf-29fd-48d4-a6df-4640feeb7ee3";
 // Zugangsdaten zum WLAN:
 char wifi_ssid_private[32];
 char wifi_password_private[32];
+
 const char* host = "ubuntu";
 const int httpPort = 8080;
+
 bool migrateMode = false;
 
 const char* statAddress = "http://ubuntu:8080/stats";
@@ -30,16 +36,21 @@ const int resetButtonPin = 15;
 int resetButtonState = 0;
 
 //Webserver für migrate
-ESP8266WebServer server(80);
+WebServer server(80);
 String headers[20];
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial.setTimeout(2000);
   while(!Serial) { }
 
-  String ssid = readEEPROM(0,32,wifi_ssid_private);
-  if (ssid == "") {
+  pinMode(resetButtonPin, INPUT);
+
+  EEPROM.begin(512); //Max bytes of eeprom to use
+
+  readEEPROM(0,32,wifi_ssid_private);
+  readEEPROM(32,32,wifi_password_private);
+  if (strlen(wifi_ssid_private) == 0) {
     migrateMode = true;
   }
   
@@ -51,7 +62,6 @@ void setup() {
     setupLightSensor();
     sendStartupPing();
   }
-  pinMode(resetButtonPin, INPUT);
 }
 
 void loop() {
@@ -84,7 +94,7 @@ void setupTempSensor() {
 }
 
 void setupLightSensor() {
-  Wire.begin(D2, D1);
+  // Wire.begin(D2, D1);
   if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
     Serial.println(F("BH1750 Advanced begin"));
   } else {
@@ -94,44 +104,44 @@ void setupLightSensor() {
 
 //startAdr: offset (bytes), writeString: String to be written to EEPROM
 void writeEEPROM(int startAdr, String writeString) {
-  EEPROM.begin(512); //Max bytes of eeprom to use
   yield();
   //write to eeprom
   int charLength=writeString.length();
   for (int i = 0; i < charLength; ++i) {
     EEPROM.write(startAdr + i, writeString[i]);
+    delay(10);
   }
-  EEPROM.commit();
-  EEPROM.end();
+  if (!EEPROM.commit()) {
+    Serial.println("ERROR! EEPROM commit failed");
+  }
 }
 
-String readEEPROM(int startAdr, int maxLength, char* dest) {
-  EEPROM.begin(512);
-  delay(10);
+void readEEPROM(int startAdr, int maxLength, char *dest) {
   for (int i = 0; i < maxLength; ++i) {
     dest[i] = char(EEPROM.read(startAdr + i));
   }
-  EEPROM.end();
-  return dest;
 }
 
 void clearEEPROM() {
-  EEPROM.begin(512);
   // write a 0 to all 512 bytes of the EEPROM
   for (int i = 0; i < 512; i++) {
     EEPROM.write(i, 0);
   }
-  EEPROM.end();
+  if (!EEPROM.commit()) {
+    Serial.println("ERROR! EEPROM commit failed");
+  }
 }
 
 void connectWifi() {
-  String ssid = readEEPROM(0,32,wifi_ssid_private);
-  String pw = readEEPROM(32,64,wifi_password_private);
-  Serial.println("Connecting to ");
-  Serial.println(ssid);
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.print(wifi_ssid_private);
+  Serial.print(" - ");
+  Serial.print(wifi_password_private);
+  Serial.println();
 
   //connect to your local wi-fi network
-  WiFi.begin(ssid, pw);
+  WiFi.begin(wifi_ssid_private, wifi_password_private);
 
   //check wi-fi is connected to wi-fi network
   while (WiFi.status() != WL_CONNECTED) {
@@ -222,22 +232,17 @@ void handleWifi() {
     server.send(200, "text/plain", "Body not received");
     return;
   }
-  
   String ssid = split(server.arg("plain"), '\n', 0);
   String pw = split(server.arg("plain"), '\n', 1);
   ssid.toCharArray(wifi_ssid_private, 32);
   pw.toCharArray(wifi_password_private, 32);
-
-  Serial.println(ssid);
-  Serial.println(pw);
-  Serial.println(wifi_ssid_private);
-  Serial.println(wifi_password_private);
   
   writeEEPROM(0,wifi_ssid_private);//32 byte max length
   writeEEPROM(32,wifi_password_private);//32 byte max length
   
   server.send(200, "text/plain", "");
   delay(2000);
+  
   ESP.restart();
 }
 
@@ -251,7 +256,7 @@ String split(String s, char parser, int index) {
     rToIndex = s.indexOf(parser,rFromIndex);
     if (index == parserCnt) {
       if (rToIndex == 0 || rToIndex == -1) return "";
-      return s.substring(rFromIndex,rToIndex-1);
+      return s.substring(rFromIndex,rToIndex);
     } else parserCnt++;
   }
   return rs;
