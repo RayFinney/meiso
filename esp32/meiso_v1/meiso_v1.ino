@@ -25,7 +25,7 @@ int sensorDelay = 10000;
 int dataPin = 2; // PIN D4 = GPIO 2
 DHT dht(dataPin, sensor);
 
-const int resetButtonPin = 8;
+const int resetButtonPin = 15;
 int resetButtonState = 0;
 
 //Webserver für migrate
@@ -56,6 +56,7 @@ void setup() {
 void loop() {
   resetButtonState = digitalRead(resetButtonPin);
   if (resetButtonState == HIGH) {
+    Serial.println("reset");
     clearEEPROM();
     delay(1000);
     ESP.restart();
@@ -157,11 +158,18 @@ void migration() {
   Serial.println("Start migration..!");
   startAP();
   
-  server.on("/health", handleHealthCheck);
-  server.on("/wifi", handleWifi);
+  server.on("/health", HTTP_GET, handleHealthCheck);
+  server.on("/wifi", HTTP_POST, handleWifi);
   server.begin(); //Start the server
   Serial.println("Server listening");
 }
+
+void setCrossOrigin(){
+    server.sendHeader(F("Access-Control-Allow-Origin"), F("*"));
+    server.sendHeader(F("Access-Control-Max-Age"), F("600"));
+    server.sendHeader(F("Access-Control-Allow-Methods"), F("PUT,POST,GET,OPTIONS"));
+    server.sendHeader(F("Access-Control-Allow-Headers"), F("*"));
+};
 
 void sendData (float lux, float temp, float fTemp, float humidity) {
   WiFiClient client;
@@ -194,11 +202,13 @@ void sendStartupPing () {
 }
 
 void handleHealthCheck() {
+  setCrossOrigin();
   server.send(200, "text/plain", "OK");
   return;
 }
 
 void handleWifi() {
+  setCrossOrigin();
   if (server.hasArg("plain")== false){ //Check if body received
     server.send(200, "text/plain", "Body not received");
     return;

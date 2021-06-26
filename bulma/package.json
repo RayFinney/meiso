@@ -1,0 +1,16 @@
+{
+  "name": "bulma",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "css-build": "node-sass --omit-source-map-url sass/meiso.scss css/meiso.css",
+    "css-watch": "npm run css-build -- --watch",
+    "start": "npm run css-watch"
+  },
+  "author": "Kevin Bintzik",
+  "license": "ISC",
+  "devDependencies": {
+    "bulma": "^0.9.3",
+    "node-sass": "^6.0.1"
+  }
+}
