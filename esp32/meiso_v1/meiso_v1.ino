@@ -35,7 +35,6 @@ String headers[20];
 void setup() {
   Serial.begin(9600);
   Serial.setTimeout(2000);
-  //clearEEPROM();
   while(!Serial) { }
 
   String ssid = readEEPROM(0,32,wifi_ssid_private);
