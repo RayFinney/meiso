@@ -8,6 +8,7 @@
 
 #define sensor DHT22
 
+const char* device_uuid = "15518caf-29fd-48d4-a6df-4640feeb7ee3";
 // Zugangsdaten zum WLAN:
 char wifi_ssid_private[32];
 char wifi_password_private[32];
@@ -23,6 +24,9 @@ int sensorDelay = 10000;
 
 int dataPin = 2; // PIN D4 = GPIO 2
 DHT dht(dataPin, sensor);
+
+const int resetButtonPin = 8;
+int resetButtonState = 0;
 
 //Webserver für migrate
 ESP8266WebServer server(80);
@@ -47,9 +51,16 @@ void setup() {
     setupLightSensor();
     sendStartupPing();
   }
+  pinMode(resetButtonPin, INPUT);
 }
 
 void loop() {
+  resetButtonState = digitalRead(resetButtonPin);
+  if (resetButtonState == HIGH) {
+    clearEEPROM();
+    delay(1000);
+    ESP.restart();
+  }
   if (!migrateMode) {
     delay(sensorDelay);
     float lux = lightMeter.readLightLevel();
@@ -163,6 +174,7 @@ void sendData (float lux, float temp, float fTemp, float humidity) {
   HTTPClient http;
   http.begin(client, statAddress);
   http.addHeader("Content-Type", "application/json");
+  http.addHeader("x-device", device_uuid);
   Serial.println("send stat data: " + postData);
   auto httpCode = http.POST(postData);
 }
@@ -177,6 +189,7 @@ void sendStartupPing () {
   HTTPClient http;
   http.begin(client, startupAddress);
   http.addHeader("Content-Type", "text/plain");
+  http.addHeader("x-device", device_uuid);
   Serial.println("send startup ping");
   auto httpCode = http.GET();
 }
