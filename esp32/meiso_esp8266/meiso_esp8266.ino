@@ -7,6 +7,7 @@
 #include <Wire.h>
 #include "DHT.h"
 #include <EEPROM.h>
+#include <PubSubClient.h>
 
 #define sensor DHT22
 
@@ -37,6 +38,10 @@ int resetButtonState = 0;
 ESP8266WebServer server(80);
 String headers[20];
 
+WiFiClient wifiClient;
+PubSubClient MQTTClient(espClient);
+const char* MQTT_BROKER = "test.mosquitto.org";
+
 void setup() {
   Serial.begin(115200);
   Serial.setTimeout(2000);
@@ -51,7 +56,7 @@ void setup() {
   if (strlen(wifi_ssid_private) == 0) {
     migrateMode = true;
   }
-  
+
   if (migrateMode) {
     migration();
   } else {
@@ -62,6 +67,7 @@ void setup() {
   }
 }
 
+// TODO: start migraton only on button press, potential bat. killer
 void loop() {
   resetButtonState = digitalRead(resetButtonPin);
   if (resetButtonState == HIGH) {
@@ -161,7 +167,7 @@ void connectWifi() {
 
 // The network established by softAP will have default IP address of 192.168.4.1.
 void startAP() {
-  boolean result = WiFi.softAP("MeiSo", "", 1, false, 1);  
+  boolean result = WiFi.softAP("MeiSo", "", 1, false, 1);
   Serial.print("creating AccessPoint was ");
   if(result == false){
     Serial.println("NOT ");
@@ -173,7 +179,7 @@ void startAP() {
 void migration() {
   Serial.println("Start migration..!");
   startAP();
-  
+
   server.on("/health", HTTP_GET, handleHealthCheck);
   server.on("/wifi", HTTP_POST, handleWifi);
   server.begin(); //Start the server
@@ -234,13 +240,13 @@ void handleWifi() {
   String pw = split(server.arg("plain"), '\n', 1);
   ssid.toCharArray(wifi_ssid_private, 32);
   pw.toCharArray(wifi_password_private, 32);
-  
+
   writeEEPROM(0,wifi_ssid_private);//32 byte max length
   writeEEPROM(32,wifi_password_private);//32 byte max length
-  
+
   server.send(200, "text/plain", "");
   delay(2000);
-  
+
   ESP.restart();
 }
 
